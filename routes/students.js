@@ -7,15 +7,14 @@ const db = require("../config/database");
 // Middleware
 router.use(checkToken);
 
-// select students.name from students join enrolled_data on enrolled_data.student_id = students.id and course_id = 1
-
+// TODO: don't show password in students details.
 //=============================== GET request ================================//
 // Get all students
 router.get("/", (req, res) => {
   let sql = "select * from students";
   db.query(sql, (err, result) => {
-    if (err) throw err;
-    res.json(result);
+    if (err) res.json({ success: false, error: "Query doesn't work." });
+    else res.json(result);
   });
 });
 

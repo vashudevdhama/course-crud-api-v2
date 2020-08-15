@@ -4,6 +4,7 @@ const db = require("../config/database");
 const bcrypt = require("bcrypt");
 const { to } = require("await-to-js");
 const router = express.Router();
+require("dotenv").config();
 
 // Signup POST request
 router.post("/signup", async (req, res) => {
@@ -88,7 +89,7 @@ const validateSignupPayload = (userName, email, password) => {
   }
 };
 
-const salt = "dmFzaHVkZXZkaGFtYQo=";
+const salt = process.env.SALT;
 // Generate token
 const generateToken = (userData) => {
   let token = jwt.sign(userData, salt, { expiresIn: 172800000 });

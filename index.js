@@ -3,6 +3,7 @@ require("dotenv").config();
 
 const app = express();
 
+// TODO: {Signup} User ID increase on duplicate data.
 // TODO: Try to achieve MVC pattern.
 // Body parser middleware
 app.use(express.json());

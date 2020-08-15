@@ -5,8 +5,6 @@ const checkToken = require("../middleware/checkToken");
 const db = require("../config/database");
 
 // TODO: {Get course} fetch enroll data course wise and student wise
-// TODO: {Enroll student, Unenroll student} check for valid studentID and courseID from DB.
-// TODO: {Enroll student, Unenroll student} check if already un/enrolled and seat availability.
 // Middleware
 router.use(checkToken);
 
@@ -42,7 +40,6 @@ router.get("/enroll/data", (req, res) => {
     res.json(result);
   });
 });
-
 //=============================== POST request ================================//
 // Add course
 router.post("/", (req, res) => {
@@ -79,19 +76,8 @@ router.post("/:id/enroll", (req, res) => {
   const courseID = req.params.id;
   if (!studentID || !courseID) {
     res.status(400).json({ error: "Invalid Payload" });
-  }
-  console.log("Check....:", res.locals.id, studentID);
-  if (res.locals.id == studentID) {
-    let sql = "insert into enrolled_data set ?";
-    let enrolledData = { course_id: courseID, student_id: studentID };
-    decreaseCourseSeat(courseID);
-    db.query(sql, enrolledData, (err, result) => {
-      if (err) throw err;
-      console.log(result);
-      res.json({ success: true });
-    });
   } else {
-    res.json({ success: false, msg: "You can't enroll someone else." });
+    checkAndEnroll(res, studentID, courseID);
   }
 });
 
@@ -102,18 +88,8 @@ router.put("/:id/deregister", (req, res) => {
   const courseID = req.params.id;
   if (!studentID || !courseID) {
     res.status(400).json({ error: "Invalid Payload" });
-  }
-
-  if (res.locals.id == studentID) {
-    let sql = `delete from enrolled_data where student_id = ${studentID} and course_id = ${courseID}`;
-    increaseCourseSeat(courseID);
-    db.query(sql, (err, result) => {
-      if (err) throw err;
-      console.log(result);
-      res.json({ success: true });
-    });
   } else {
-    res.json({ success: false, msg: "You can't unenroll someone else." });
+    checkAndUnenroll(res, studentID, courseID);
   }
 });
 
@@ -152,5 +128,101 @@ function decreaseCourseSeat(courseID) {
     });
   });
 }
-
+const checkAndEnroll = (res, studentID, courseID) => {
+  let sql = `select * from courses where id = ${courseID}`;
+  db.query(sql, (err, result) => {
+    if (err) {
+      res.json({ success: false, error: "Couldn't check for course id." });
+    } else {
+      console.log("result: ", result[0]);
+      if (result.length === 0) {
+        // course doesn't exists.
+        res.json({
+          success: false,
+          error: `No such course exist with id ${courseID}`,
+        });
+      }
+      // course exists
+      else {
+        //check for seat availability.
+        db.query(
+          `select available_seats from courses where id = ${courseID}`,
+          (err, result) => {
+            if (err) {
+              res.json({
+                success: false,
+                error: "Couldn't get available seats.",
+              });
+            } else {
+              if (result == 0) {
+                // seats unavailable
+                res.json({
+                  success: false,
+                  error: "No more seats available in the course.",
+                });
+              } else {
+                // seats available
+                enrollStudent(res, studentID, courseID);
+              }
+            }
+          }
+        );
+      }
+    }
+  });
+};
+const enrollStudent = (res, studentID, courseID) => {
+  if (res.locals.id == studentID) {
+    let sql = "insert into enrolled_data set ?";
+    let enrolledData = { course_id: courseID, student_id: studentID };
+    decreaseCourseSeat(courseID);
+    db.query(sql, enrolledData, (err, result) => {
+      if (err) {
+        // Check for duplicate entry.
+        if (err.code === "ER_DUP_ENTRY") {
+          res.json({ success: false, error: "You are already enrolled." });
+        } else {
+          res.json({ success: false, error: "Some error occured" });
+        }
+      } else {
+        res.json({ success: true });
+      }
+    });
+  } else {
+    res.json({ success: false, msg: "You can't enroll someone else." });
+  }
+};
+const checkAndUnenroll = (res, studentID, courseID) => {
+  let sql = `select * from enrolled_data where student_id = ${studentID} and course_id = ${courseID}`;
+  db.query(sql, (err, result) => {
+    if (err) {
+      res.json({
+        success: false,
+        error: "Couldn't check for course and student id.",
+      });
+    } else {
+      if (result.length === 0) {
+        res.json({
+          success: false,
+          error: `No such enrollment record found.`,
+        });
+      } else {
+        unenrollStudent(res, studentID, courseID);
+      }
+    }
+  });
+};
+const unenrollStudent = (res, studentID, courseID) => {
+  if (res.locals.id == studentID) {
+    let sql = `delete from enrolled_data where student_id = ${studentID} and course_id = ${courseID}`;
+    increaseCourseSeat(courseID);
+    db.query(sql, (err, result) => {
+      if (err) throw err;
+      console.log(result);
+      res.json({ success: true });
+    });
+  } else {
+    res.json({ success: false, msg: "You can't unenroll someone else." });
+  }
+};
 module.exports = router;
